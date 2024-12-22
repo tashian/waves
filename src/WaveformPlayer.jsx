@@ -230,7 +230,8 @@ const WaveformPlayer = () => {
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <h1 className="text-2xl font-bold">AKWF Player</h1>
-      <p>This app allows you to preview waveform sounds from the popular, public domain <a href="https://www.adventurekid.se/akrt/waveforms/adventure-kid-waveforms/" className="text-sky-500 font-semibold dark:text-sky-400">Adventure Kid Waveform</a> collection curated by <a href="https://www.adventurekid.se" className="text-sky-500 font-semibold dark:text-sky-400">Kristoffer Ekstrand</a>.</p>
+      <p>This app by <a href="https://tashian.com" className="text-sky-500 font-semibold dark:text-sky-400">Carl Tashian</a> allows you to preview single-cycle waveform sounds from the <a href="https://www.adventurekid.se/akrt/waveforms/adventure-kid-waveforms/" className="text-sky-500 font-semibold dark:text-sky-400">Adventure Kid Waveform</a> collection curated by <a href="https://www.adventurekid.se" className="text-sky-500 font-semibold dark:text-sky-400">Kristoffer Ekstrand</a>.</p>
+      <p><a href="https://github.com/tashian/waves" className="text-sky-500 font-semibold dark:text-sky-400">GitHub pull requests are welcome</a>.</p>
       <div className="border rounded p-4 bg-white">
         <WaveformDisplay 
           data={getMorphedWaveform()}
