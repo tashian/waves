@@ -94,6 +94,10 @@ const WaveformPlayer = () => {
 
   useEffect(() => cleanup, []);
 
+  useEffect(() => {
+    updateWorkletWaveforms();
+  }, [selectedSuperBank, bankIndex, waveIndex, bankMorphEnabled, waveMorphEnabled]);
+
   const initAudio = async () => {
     cleanup();
 
@@ -114,8 +118,6 @@ const WaveformPlayer = () => {
       
       workletNodeRef.current.connect(filterRef.current);
       filterRef.current.connect(audioContextRef.current.destination);
-      
-      updateWorkletWaveforms();
     } catch (error) {
       console.error('Error initializing audio worklet:', error);
       throw error;
@@ -154,6 +156,7 @@ const WaveformPlayer = () => {
       }
       
       setIsPlaying(true);
+      updateWorkletWaveforms();
     } catch (error) {
       console.error('Error starting playback:', error);
     }
@@ -175,27 +178,22 @@ const WaveformPlayer = () => {
     setSelectedSuperBank(value);
     setBankIndex(0);
     setWaveIndex(0);
-    updateWorkletWaveforms();
   };
 
   const handleBankChange = (value) => {
     setBankIndex(value);
-    updateWorkletWaveforms();
   };
 
   const handleWaveChange = (value) => {
     setWaveIndex(value);
-    updateWorkletWaveforms();
   };
 
   const handleBankMorphToggle = (enabled) => {
     setBankMorphEnabled(enabled);
-    updateWorkletWaveforms();
   };
 
   const handleWaveMorphToggle = (enabled) => {
     setWaveMorphEnabled(enabled);
-    updateWorkletWaveforms();
   };
 
   const handleFrequencyChange = (value) => {
