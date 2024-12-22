@@ -22,9 +22,6 @@ const WaveformPlayer = () => {
   const workletNodeRef = useRef(null);
   const filterRef = useRef(null);
 
-  // Convert uint16_t arrays to normalized float arrays (-1 to 1)
-  const normalizeWaveform = (data) => data.map(x => (x - 32768) / 32768);
-
   // Get waveform names for current position
   const getWaveformNames = (superBank, bankPos, wavePos) => {
     const waveformsInBank = Object.keys(waveforms[superBank]);
@@ -56,10 +53,10 @@ const WaveformPlayer = () => {
     
     if (bankMorphEnabled || waveMorphEnabled) {
       // Get the four waveforms we might need
-      const wave11 = normalizeWaveform(currentBank[waveformNames.wave11]);
-      const wave12 = normalizeWaveform(currentBank[waveformNames.wave12]);
-      const wave21 = normalizeWaveform(currentBank[waveformNames.wave21]);
-      const wave22 = normalizeWaveform(currentBank[waveformNames.wave22]);
+      const wave11 = currentBank[waveformNames.wave11];
+      const wave12 = currentBank[waveformNames.wave12];
+      const wave21 = currentBank[waveformNames.wave21];
+      const wave22 = currentBank[waveformNames.wave22];
 
       // Calculate morph amounts
       const bankMorphAmount = bankMorphEnabled ? bankIndex % 1 : 0;
@@ -73,7 +70,7 @@ const WaveformPlayer = () => {
       });
     } else {
       // No morphing - just return the selected waveform
-      return normalizeWaveform(currentBank[waveformNames.wave11]);
+      return currentBank[waveformNames.wave11];
     }
   };
 
@@ -133,10 +130,10 @@ const WaveformPlayer = () => {
     workletNodeRef.current.port.postMessage({
       type: 'loadWaveforms',
       waveforms: {
-        bank1wave1: normalizeWaveform(currentBank[waveformNames.wave11]),
-        bank1wave2: normalizeWaveform(currentBank[waveformNames.wave12]),
-        bank2wave1: normalizeWaveform(currentBank[waveformNames.wave21]),
-        bank2wave2: normalizeWaveform(currentBank[waveformNames.wave22])
+        bank1wave1: currentBank[waveformNames.wave11],
+        bank1wave2: currentBank[waveformNames.wave12],
+        bank2wave1: currentBank[waveformNames.wave21],
+        bank2wave2: currentBank[waveformNames.wave22]
       },
       bankMorphEnabled,
       waveMorphEnabled,
