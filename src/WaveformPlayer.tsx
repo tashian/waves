@@ -3,10 +3,10 @@ import WaveformDisplay from './WaveformDisplay';
 import waveforms from './waveforms.js';
 
 const WaveformPlayer = () => {
-  // Bank selection state
+  // State for bank and wave selection
   const [selectedSuperBank, setSelectedSuperBank] = useState(Object.keys(waveforms)[0]);
-  const [bankPosition, setBankPosition] = useState(0);
-  const [wavePosition, setWavePosition] = useState(0);
+  const [bankIndex, setBankIndex] = useState(0);
+  const [waveIndex, setWaveIndex] = useState(0);
   
   // Morphing toggles
   const [bankMorphEnabled, setBankMorphEnabled] = useState(true);
@@ -25,30 +25,45 @@ const WaveformPlayer = () => {
   // Convert uint16_t arrays to normalized float arrays (-1 to 1)
   const normalizeWaveform = (data) => data.map(x => (x - 32768) / 32768);
 
-  // Get morphed waveform data for display and audio
+  // Get waveform names for current position
+  const getWaveformNames = (superBank, bankPos, wavePos) => {
+    const waveformsInBank = Object.keys(waveforms[superBank]);
+    const waveCount = waveformsInBank.length;
+    const wavesPerBank = 10;
+    
+    // Calculate indices for current bank and next bank
+    const bankStart1 = Math.floor(bankPos) * wavesPerBank;
+    const bankStart2 = Math.min((Math.floor(bankPos) + 1) * wavesPerBank, waveCount - wavesPerBank);
+    
+    // Calculate indices for current waves and next waves
+    const wave1Index = Math.min(bankStart1 + Math.floor(wavePos), waveCount - 1);
+    const wave2Index = Math.min(bankStart1 + Math.min(Math.floor(wavePos) + 1, wavesPerBank - 1), waveCount - 1);
+    const wave3Index = Math.min(bankStart2 + Math.floor(wavePos), waveCount - 1);
+    const wave4Index = Math.min(bankStart2 + Math.min(Math.floor(wavePos) + 1, wavesPerBank - 1), waveCount - 1);
+
+    return {
+      wave11: waveformsInBank[wave1Index],
+      wave12: waveformsInBank[wave2Index],
+      wave21: waveformsInBank[wave3Index],
+      wave22: waveformsInBank[wave4Index]
+    };
+  };
+
+  // Get morphed waveform data for display
   const getMorphedWaveform = () => {
     const currentBank = waveforms[selectedSuperBank];
+    const waveformNames = getWaveformNames(selectedSuperBank, bankIndex, waveIndex);
     
     if (bankMorphEnabled || waveMorphEnabled) {
-      // Calculate bank indices and morphing amounts
-      const bankIndex1 = Math.floor(bankPosition);
-      const bankIndex2 = Math.min(bankIndex1 + 1, currentBank.length - 1);
-      const bankMorphAmount = bankMorphEnabled ? bankPosition - bankIndex1 : 0;
+      // Get the four waveforms we might need
+      const wave11 = normalizeWaveform(currentBank[waveformNames.wave11]);
+      const wave12 = normalizeWaveform(currentBank[waveformNames.wave12]);
+      const wave21 = normalizeWaveform(currentBank[waveformNames.wave21]);
+      const wave22 = normalizeWaveform(currentBank[waveformNames.wave22]);
 
-      // Get the two banks we're morphing between
-      const bank1 = currentBank[bankIndex1];
-      const bank2 = currentBank[bankIndex2];
-
-      // Calculate wave indices and morphing amounts within each bank
-      const waveIndex1 = Math.floor(wavePosition);
-      const waveIndex2 = Math.min(waveIndex1 + 1, bank1.length - 1);
-      const waveMorphAmount = waveMorphEnabled ? wavePosition - waveIndex1 : 0;
-
-      // Get all four potentially involved waveforms
-      const wave11 = normalizeWaveform(bank1[waveIndex1]);
-      const wave12 = normalizeWaveform(bank1[waveIndex2]);
-      const wave21 = normalizeWaveform(bank2[waveIndex1]);
-      const wave22 = normalizeWaveform(bank2[waveIndex2]);
+      // Calculate morph amounts
+      const bankMorphAmount = bankMorphEnabled ? bankIndex % 1 : 0;
+      const waveMorphAmount = waveMorphEnabled ? waveIndex % 1 : 0;
 
       // Perform bilinear interpolation
       return wave11.map((sample, i) => {
@@ -58,12 +73,11 @@ const WaveformPlayer = () => {
       });
     } else {
       // No morphing - just return the selected waveform
-      const bankIndex = Math.floor(bankPosition);
-      const waveIndex = Math.floor(wavePosition);
-      return normalizeWaveform(currentBank[bankIndex][waveIndex]);
+      return normalizeWaveform(currentBank[waveformNames.wave11]);
     }
   };
 
+  // Audio cleanup
   const cleanup = () => {
     if (workletNodeRef.current) {
       workletNodeRef.current.disconnect();
@@ -101,7 +115,6 @@ const WaveformPlayer = () => {
       workletNodeRef.current.connect(filterRef.current);
       filterRef.current.connect(audioContextRef.current.destination);
       
-      // Send initial waveform data and morphing parameters
       updateWorkletWaveforms();
     } catch (error) {
       console.error('Error initializing audio worklet:', error);
@@ -113,23 +126,20 @@ const WaveformPlayer = () => {
     if (!workletNodeRef.current) return;
 
     const currentBank = waveforms[selectedSuperBank];
-    const bankIndex = Math.floor(bankPosition);
-    const bankIndex2 = Math.min(bankIndex + 1, currentBank.length - 1);
-    const waveIndex = Math.floor(wavePosition);
-    const waveIndex2 = Math.min(waveIndex + 1, currentBank[bankIndex].length - 1);
+    const waveformNames = getWaveformNames(selectedSuperBank, bankIndex, waveIndex);
 
     workletNodeRef.current.port.postMessage({
       type: 'loadWaveforms',
+      waveforms: {
+        bank1wave1: normalizeWaveform(currentBank[waveformNames.wave11]),
+        bank1wave2: normalizeWaveform(currentBank[waveformNames.wave12]),
+        bank2wave1: normalizeWaveform(currentBank[waveformNames.wave21]),
+        bank2wave2: normalizeWaveform(currentBank[waveformNames.wave22])
+      },
       bankMorphEnabled,
       waveMorphEnabled,
-      waveforms: {
-        bank1wave1: normalizeWaveform(currentBank[bankIndex][waveIndex]),
-        bank1wave2: normalizeWaveform(currentBank[bankIndex][waveIndex2]),
-        bank2wave1: normalizeWaveform(currentBank[bankIndex2][waveIndex]),
-        bank2wave2: normalizeWaveform(currentBank[bankIndex2][waveIndex2])
-      },
-      bankMorphAmount: bankPosition - bankIndex,
-      waveMorphAmount: wavePosition - waveIndex
+      bankMorphAmount: bankMorphEnabled ? bankIndex % 1 : 0,
+      waveMorphAmount: waveMorphEnabled ? waveIndex % 1 : 0
     });
   };
 
@@ -163,16 +173,28 @@ const WaveformPlayer = () => {
   // UI update handlers
   const handleSuperBankChange = (value) => {
     setSelectedSuperBank(value);
+    setBankIndex(0);
+    setWaveIndex(0);
     updateWorkletWaveforms();
   };
 
   const handleBankChange = (value) => {
-    setBankPosition(value);
+    setBankIndex(value);
     updateWorkletWaveforms();
   };
 
   const handleWaveChange = (value) => {
-    setWavePosition(value);
+    setWaveIndex(value);
+    updateWorkletWaveforms();
+  };
+
+  const handleBankMorphToggle = (enabled) => {
+    setBankMorphEnabled(enabled);
+    updateWorkletWaveforms();
+  };
+
+  const handleWaveMorphToggle = (enabled) => {
+    setWaveMorphEnabled(enabled);
     updateWorkletWaveforms();
   };
 
@@ -204,6 +226,20 @@ const WaveformPlayer = () => {
           color="#2563eb"
           showCenterLine={true}
         />
+        <div className="mt-2 text-sm text-gray-600">
+          {bankMorphEnabled || waveMorphEnabled ? (
+            <div>
+              Morphing between: {getWaveformNames(selectedSuperBank, bankIndex, waveIndex).wave11}
+              {waveMorphEnabled && waveIndex % 1 !== 0 && ` → ${getWaveformNames(selectedSuperBank, bankIndex, waveIndex).wave12}`}
+              {bankMorphEnabled && bankIndex % 1 !== 0 && ` → ${getWaveformNames(selectedSuperBank, bankIndex, waveIndex).wave21}`}
+              {bankMorphEnabled && waveMorphEnabled && bankIndex % 1 !== 0 && waveIndex % 1 !== 0 && ` → ${getWaveformNames(selectedSuperBank, bankIndex, waveIndex).wave22}`}
+            </div>
+          ) : (
+            <div>
+              Current waveform: {getWaveformNames(selectedSuperBank, bankIndex, waveIndex).wave11}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="border rounded p-4 bg-white">
@@ -238,9 +274,9 @@ const WaveformPlayer = () => {
                 <input
                   type="range"
                   min="0"
-                  max={waveforms[selectedSuperBank].length - 1}
+                  max="9"
                   step={bankMorphEnabled ? "0.01" : "1"}
-                  value={bankPosition}
+                  value={bankIndex}
                   onChange={(e) => handleBankChange(parseFloat(e.target.value))}
                   className="flex-1"
                 />
@@ -248,15 +284,15 @@ const WaveformPlayer = () => {
                   <input
                     type="checkbox"
                     checked={bankMorphEnabled}
-                    onChange={(e) => setBankMorphEnabled(e.target.checked)}
+                    onChange={(e) => handleBankMorphToggle(e.target.checked)}
                   />
                   Morph
                 </label>
               </div>
               <span className="text-sm text-gray-600">
-                Bank {Math.floor(bankPosition)}
-                {bankMorphEnabled && bankPosition % 1 !== 0 && 
-                  ` → ${Math.ceil(bankPosition)} (${Math.round((bankPosition % 1) * 100)}%)`}
+                Bank {Math.floor(bankIndex) + 1}
+                {bankMorphEnabled && bankIndex % 1 !== 0 && 
+                  ` → ${Math.floor(bankIndex) + 2} (${Math.round((bankIndex % 1) * 100)}%)`}
               </span>
             </label>
           </div>
@@ -268,9 +304,9 @@ const WaveformPlayer = () => {
                 <input
                   type="range"
                   min="0"
-                  max={waveforms[selectedSuperBank][Math.floor(bankPosition)].length - 1}
+                  max="9"
                   step={waveMorphEnabled ? "0.01" : "1"}
-                  value={wavePosition}
+                  value={waveIndex}
                   onChange={(e) => handleWaveChange(parseFloat(e.target.value))}
                   className="flex-1"
                 />
@@ -278,15 +314,15 @@ const WaveformPlayer = () => {
                   <input
                     type="checkbox"
                     checked={waveMorphEnabled}
-                    onChange={(e) => setWaveMorphEnabled(e.target.checked)}
+                    onChange={(e) => handleWaveMorphToggle(e.target.checked)}
                   />
                   Morph
                 </label>
               </div>
               <span className="text-sm text-gray-600">
-                Wave {Math.floor(wavePosition)}
-                {waveMorphEnabled && wavePosition % 1 !== 0 && 
-                  ` → ${Math.ceil(wavePosition)} (${Math.round((wavePosition % 1) * 100)}%)`}
+                Wave {Math.floor(waveIndex) + 1}
+                {waveMorphEnabled && waveIndex % 1 !== 0 && 
+                  ` → ${Math.floor(waveIndex) + 2} (${Math.round((waveIndex % 1) * 100)}%)`}
               </span>
             </label>
           </div>
