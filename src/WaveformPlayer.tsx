@@ -2,6 +2,19 @@ import React, { useState, useEffect, useRef } from 'react';
 import WaveformDisplay from './WaveformDisplay';
 import waveforms from './waveforms.js';
 
+// Utility functions for exponential scaling
+const expScale = (value, min, max) => {
+  const minLog = Math.log(min);
+  const maxLog = Math.log(max);
+  return Math.exp(minLog + (value * (maxLog - minLog)));
+};
+
+const invExpScale = (value, min, max) => {
+  const minLog = Math.log(min);
+  const maxLog = Math.log(max);
+  return (Math.log(value) - minLog) / (maxLog - minLog);
+};
+
 const WaveformPlayer = () => {
   // State for bank and wave selection
   const [selectedSuperBank, setSelectedSuperBank] = useState(Object.keys(waveforms)[0]);
@@ -14,8 +27,12 @@ const WaveformPlayer = () => {
   
   // Audio parameters
   const [isPlaying, setIsPlaying] = useState(false);
-  const [frequency, setFrequency] = useState(440);
-  const [filterFrequency, setFilterFrequency] = useState(22050);
+  const [frequencyNorm, setFrequencyNorm] = useState(invExpScale(440, 20, 2000));
+  const [filterFreqNorm, setFilterFreqNorm] = useState(invExpScale(22050, 20, 22050));
+
+ // Actual frequency values
+  const frequency = expScale(frequencyNorm, 20, 2000);
+  const filterFrequency = expScale(filterFreqNorm, 20, 22050);
   
   // Audio refs
   const audioContextRef = useRef(null);
@@ -193,27 +210,28 @@ const WaveformPlayer = () => {
     setWaveMorphEnabled(enabled);
   };
 
-  const handleFrequencyChange = (value) => {
-    setFrequency(value);
+  const handleFrequencyChange = (normValue) => {
+    setFrequencyNorm(normValue);
+    const freqValue = expScale(normValue, 20, 2000);
     if (workletNodeRef.current?.parameters) {
       workletNodeRef.current.parameters.get('frequency')
-        ?.setValueAtTime(value, audioContextRef.current.currentTime);
+        ?.setValueAtTime(freqValue, audioContextRef.current.currentTime);
     }
   };
 
-  const handleFilterFrequencyChange = (value) => {
-    setFilterFrequency(value);
+  const handleFilterFrequencyChange = (normValue) => {
+    setFilterFreqNorm(normValue);
+    const freqValue = expScale(normValue, 20, 22050);
     if (filterRef.current) {
-      filterRef.current.frequency.setValueAtTime(value, audioContextRef.current.currentTime);
+      filterRef.current.frequency.setValueAtTime(freqValue, audioContextRef.current.currentTime);
     }
   };
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold">Waveform Morph Player</h1>
-      
+      <h1 className="text-2xl font-bold">AKWF Player</h1>
+      <p>This app allows you to preview waveform sounds from the popular, public domain <a href="https://www.adventurekid.se/akrt/waveforms/adventure-kid-waveforms/" className="text-sky-500 font-semibold dark:text-sky-400">Adventure Kid Waveform</a> collection curated by <a href="https://www.adventurekid.se" className="text-sky-500 font-semibold dark:text-sky-400">Kristoffer Ekstrand</a>.</p>
       <div className="border rounded p-4 bg-white">
-        <h2 className="text-lg font-bold mb-4">Waveform Display</h2>
         <WaveformDisplay 
           data={getMorphedWaveform()}
           width={600}
@@ -327,14 +345,14 @@ const WaveformPlayer = () => {
               Frequency
               <input
                 type="range"
-                min="20"
-                max="2000"
-                step="1"
-                value={frequency}
+                min="0"
+                max="1"
+                step="0.001"
+                value={frequencyNorm}
                 onChange={(e) => handleFrequencyChange(parseFloat(e.target.value))}
                 className="w-full"
               />
-              <span className="text-sm text-gray-600">{frequency} Hz</span>
+              <span className="text-sm text-gray-600">{Math.round(frequency)} Hz</span>
             </label>
           </div>
 
@@ -343,14 +361,14 @@ const WaveformPlayer = () => {
               Filter Frequency
               <input
                 type="range"
-                min="20"
-                max="22050"
-                step="1"
-                value={filterFrequency}
+                min="0"
+                max="1"
+                step="0.001"
+                value={filterFreqNorm}
                 onChange={(e) => handleFilterFrequencyChange(parseFloat(e.target.value))}
                 className="w-full"
               />
-              <span className="text-sm text-gray-600">{filterFrequency} Hz</span>
+              <span className="text-sm text-gray-600">{Math.round(filterFrequency)} Hz</span>
             </label>
           </div>
         </div>
