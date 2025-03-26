@@ -9,6 +9,10 @@ It features a waveform display and optional 2D morphing between waveforms.
 
 ## Features I'd like to see
 
+### Download button
+
+A button to download a WAV of the current interpolation.
+
 ### AD envelope
 An AD envelope for amplitude.
 The AD envelope should be triggerable by a button click in the UI, or by pressing the spacebar.
