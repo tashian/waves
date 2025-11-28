@@ -16,11 +16,11 @@ class WaveformProcessor extends AudioWorkletProcessor {
     super();
     this.phase = 0;
 
-    // Initialize waveform storage
-    this.bank1wave1 = new Float32Array(256).fill(0);
-    this.bank1wave2 = new Float32Array(256).fill(0);
-    this.bank2wave1 = new Float32Array(256).fill(0);
-    this.bank2wave2 = new Float32Array(256).fill(0);
+    // Initialize waveform storage (600 samples per waveform - original AKWF resolution)
+    this.bank1wave1 = new Float32Array(600).fill(0);
+    this.bank1wave2 = new Float32Array(600).fill(0);
+    this.bank2wave1 = new Float32Array(600).fill(0);
+    this.bank2wave2 = new Float32Array(600).fill(0);
 
     // Morphing settings
     this.bankMorphEnabled = true;
@@ -66,7 +66,7 @@ class WaveformProcessor extends AudioWorkletProcessor {
     const frequency = parameters.frequency[0];
 
     // Calculate phase increment based on frequency
-    const phaseIncrement = (frequency * 256) / sampleRate;
+    const phaseIncrement = (frequency * 600) / sampleRate;
 
     // Process each channel
     for (let channel = 0; channel < output.length; channel++) {
@@ -74,9 +74,9 @@ class WaveformProcessor extends AudioWorkletProcessor {
       
       for (let i = 0; i < outputChannel.length; i++) {
         // Get the current position in the waveform with interpolation
-        const phaseFloat = this.phase % 256;
+        const phaseFloat = this.phase % 600;
         const index1 = Math.floor(phaseFloat);
-        const index2 = (index1 + 1) % 256;
+        const index2 = (index1 + 1) % 600;
         const fracPhase = phaseFloat - index1;
         
         // Get interpolated samples from each waveform
@@ -113,8 +113,8 @@ class WaveformProcessor extends AudioWorkletProcessor {
         
         // Advance the phase
         this.phase += phaseIncrement;
-        if (this.phase >= 256) {
-          this.phase -= 256;
+        if (this.phase >= 600) {
+          this.phase -= 600;
         }
       }
     }

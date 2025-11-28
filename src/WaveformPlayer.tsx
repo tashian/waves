@@ -188,6 +188,61 @@ const WaveformPlayer: React.FC = () => {
     }
   };
 
+  // Generate WAV file from waveform data
+  const generateWavFile = (samples: number[]): Blob => {
+    const sampleRate = 44100;
+    const numSamples = samples.length;
+    const bytesPerSample = 2; // 16-bit
+    const dataSize = numSamples * bytesPerSample;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    // WAV header
+    const writeString = (offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+
+    writeString(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeString(8, 'WAVE');
+    writeString(12, 'fmt ');
+    view.setUint32(16, 16, true); // fmt chunk size
+    view.setUint16(20, 1, true); // PCM format
+    view.setUint16(22, 1, true); // mono
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * bytesPerSample, true); // byte rate
+    view.setUint16(32, bytesPerSample, true); // block align
+    view.setUint16(34, 16, true); // bits per sample
+    writeString(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    // Write samples (convert float -1 to 1 to 16-bit int)
+    for (let i = 0; i < numSamples; i++) {
+      const sample = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(44 + i * 2, sample * 32767, true);
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
+  };
+
+  // Download current waveform as WAV
+  const downloadWaveform = () => {
+    const waveform = getMorphedWaveform();
+    if (waveform.length === 0) return;
+
+    const blob = generateWavFile(waveform);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `waveform-${currentBankName}-${Date.now()}.wav`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   // Audio cleanup
   const cleanup = () => {
     if (noteTimeoutRef.current) clearTimeout(noteTimeoutRef.current);
@@ -490,9 +545,18 @@ const WaveformPlayer: React.FC = () => {
       {/* Waveform Display */}
       <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-800 flex flex-col items-center">
         <WaveformDisplay data={getMorphedWaveform()} width={600} height={150} color="#d6d3d1" backgroundColor="#27272a" centerLineColor="#52525b" showCenterLine={true} />
-        <p className="mt-2 text-xs text-stone-500 font-mono">
-          {isLoading ? 'Loading...' : getMorphLabel()}
-        </p>
+        <div className="mt-2 flex items-center gap-3">
+          <p className="text-xs text-stone-500 font-mono">
+            {isLoading ? 'Loading...' : getMorphLabel()}
+          </p>
+          <button
+            onClick={downloadWaveform}
+            disabled={isLoading || !currentBank}
+            className="px-2 py-1 text-xs rounded bg-zinc-700 hover:bg-zinc-600 text-stone-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            Download WAV
+          </button>
+        </div>
       </div>
 
       {/* Main Controls */}
