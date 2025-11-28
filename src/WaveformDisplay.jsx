@@ -67,7 +67,7 @@ const WaveformDisplay = ({
         ref={canvasRef}
         width={width}
         height={height}
-        className="border rounded"
+        className="rounded"
       />
     </div>
   );
