@@ -60,7 +60,7 @@ const WaveformPlayer: React.FC = () => {
   const [filterFreqNorm, setFilterFreqNorm] = useState(invExpScale(22050, 20, 22050));
 
   // Drone mode and envelope
-  const [droneMode, setDroneMode] = useState(true);
+  const [droneMode, setDroneMode] = useState(false);
   const [attack, setAttack] = useState(0.01);
   const [decay, setDecay] = useState(0.1);
   const [sustain, setSustain] = useState(0.7);
@@ -446,8 +446,22 @@ const WaveformPlayer: React.FC = () => {
     }
   };
 
-  const handleDroneModeToggle = (enabled: boolean) => {
+  const handleDroneModeToggle = async (enabled: boolean) => {
     setDroneMode(enabled);
+
+    if (enabled) {
+      // Initialize audio if needed when turning drone on
+      if (!audioContextRef.current) {
+        await initAudio();
+        if (audioContextRef.current!.state === 'suspended') await audioContextRef.current!.resume();
+        // Load waveforms into the worklet
+        resetWorklet();
+        loadedWaveformsRef.current = null;
+        updateWorkletWaveforms();
+        setIsPlaying(true);
+      }
+    }
+
     if (envelopeGainRef.current && audioContextRef.current) {
       const now = audioContextRef.current.currentTime;
       envelopeGainRef.current.gain.cancelScheduledValues(now);
@@ -505,8 +519,21 @@ const WaveformPlayer: React.FC = () => {
     if (envToFilterMod !== 0) filterRef.current?.frequency.setValueAtTime(base.filter, audioContextRef.current?.currentTime || 0);
   };
 
-  const triggerNote = () => {
-    if (!envelopeGainRef.current || !audioContextRef.current || droneMode) return;
+  const triggerNote = async () => {
+    if (droneMode) return;
+
+    // Initialize audio if needed
+    if (!audioContextRef.current) {
+      await initAudio();
+      if (audioContextRef.current!.state === 'suspended') await audioContextRef.current!.resume();
+      // Load waveforms into the worklet
+      resetWorklet();
+      loadedWaveformsRef.current = null;
+      updateWorkletWaveforms();
+      setIsPlaying(true);
+    }
+
+    if (!envelopeGainRef.current || !audioContextRef.current) return;
     const now = audioContextRef.current.currentTime;
     const gain = envelopeGainRef.current.gain;
 
@@ -574,21 +601,24 @@ const WaveformPlayer: React.FC = () => {
 
       {/* Main Controls */}
       <div className="space-y-4">
-        {/* Play Button & Super Bank */}
+        {/* Trigger Button, Drone Switch & Super Bank */}
         <div className="flex items-center gap-4">
-          <button
-            onClick={isPlaying ? stopPlayback : playWaveform}
-            disabled={isLoading || !currentBank}
-            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-              isLoading || !currentBank
-                ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
-                : isPlaying
-                  ? 'bg-stone-400 hover:bg-stone-300 text-zinc-900'
-                  : 'bg-stone-300 hover:bg-stone-200 text-zinc-900'
-            }`}
-          >
-            {isLoading ? 'Loading...' : isPlaying ? 'Stop' : 'Play'}
-          </button>
+          <div className="flex flex-col items-center gap-2">
+            <button
+              onClick={triggerNote}
+              disabled={isLoading || !currentBank || droneMode}
+              className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
+                isLoading || !currentBank || droneMode
+                  ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                  : noteActive
+                    ? 'bg-stone-200 text-zinc-900'
+                    : 'bg-stone-300 hover:bg-stone-200 text-zinc-900'
+              }`}
+            >
+              Trigger
+            </button>
+            <Switch checked={droneMode} onCheckedChange={handleDroneModeToggle} label="Drone" />
+          </div>
           <div className="flex-1">
             <Select
               label="Super Bank"
@@ -673,27 +703,11 @@ const WaveformPlayer: React.FC = () => {
 
         {/* Envelope */}
         <ParameterGroup title="Envelope">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Switch checked={droneMode} onCheckedChange={handleDroneModeToggle} label="Drone" />
-              <RotaryKnob value={attack} onChange={setAttack} min={0.001} max={2} step={0.001} label="A" formatValue={formatTime} size={56} disabled={droneMode} />
-              <RotaryKnob value={decay} onChange={setDecay} min={0.001} max={2} step={0.001} label="D" formatValue={formatTime} size={56} disabled={droneMode} />
-              <RotaryKnob value={sustain} onChange={setSustain} min={0} max={1} step={0.01} label="S" formatValue={(v) => formatPercent(v)} size={56} disabled={droneMode} />
-              <RotaryKnob value={release} onChange={setRelease} min={0.001} max={5} step={0.001} label="R" formatValue={formatTime} size={56} disabled={droneMode} />
-            </div>
-            <button
-              onClick={triggerNote}
-              disabled={!isPlaying || droneMode}
-              className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
-                !isPlaying || droneMode
-                  ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed opacity-50'
-                  : noteActive
-                    ? 'bg-stone-200 text-zinc-900'
-                    : 'bg-stone-300 hover:bg-stone-200 text-zinc-900'
-              }`}
-            >
-              {noteActive ? 'Playing...' : 'Trigger'}
-            </button>
+          <div className="flex items-center justify-around">
+            <RotaryKnob value={attack} onChange={setAttack} min={0.001} max={2} step={0.001} label="A" formatValue={formatTime} size={56} disabled={droneMode} />
+            <RotaryKnob value={decay} onChange={setDecay} min={0.001} max={2} step={0.001} label="D" formatValue={formatTime} size={56} disabled={droneMode} />
+            <RotaryKnob value={sustain} onChange={setSustain} min={0} max={1} step={0.01} label="S" formatValue={(v) => formatPercent(v)} size={56} disabled={droneMode} />
+            <RotaryKnob value={release} onChange={setRelease} min={0.001} max={5} step={0.001} label="R" formatValue={formatTime} size={56} disabled={droneMode} />
           </div>
         </ParameterGroup>
 
