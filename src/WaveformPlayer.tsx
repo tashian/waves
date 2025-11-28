@@ -58,7 +58,6 @@ const WaveformPlayer: React.FC = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [frequencyNorm, setFrequencyNorm] = useState(invExpScale(440, 20, 2000));
   const [filterFreqNorm, setFilterFreqNorm] = useState(invExpScale(22050, 20, 22050));
-  const [filterResonance, setFilterResonance] = useState(0.707); // Butterworth default
 
   // Drone mode and envelope
   const [droneMode, setDroneMode] = useState(true);
@@ -232,15 +231,27 @@ const WaveformPlayer: React.FC = () => {
     }
   };
 
-  useEffect(() => { updateWorkletWaveforms(); }, [currentBank, bankIndex, waveIndex, bankMorphEnabled, waveMorphEnabled]);
+  // Track which waveforms are currently loaded to avoid redundant transfers
+  const loadedWaveformsRef = useRef<string | null>(null);
+
+  // Determine if we need to load new waveforms or just update morph amounts
+  useEffect(() => {
+    if (!workletNodeRef.current || !currentBank) return;
+
+    const waveformNames = getWaveformNames(currentBank, bankIndex, waveIndex);
+    const waveformKey = `${currentBankName}-${waveformNames.wave11}-${waveformNames.wave12}-${waveformNames.wave21}-${waveformNames.wave22}`;
+
+    if (waveformKey !== loadedWaveformsRef.current) {
+      // Waveform selection changed - need to load new waveform data
+      loadedWaveformsRef.current = waveformKey;
+      updateWorkletWaveforms();
+    } else {
+      // Same waveforms, just update morph amounts (lightweight)
+      updateWorkletMorph();
+    }
+  }, [currentBank, currentBankName, bankIndex, waveIndex, bankMorphEnabled, waveMorphEnabled]);
   useEffect(() => { updateReverbMix(); }, [reverbEnabled, reverbMix]);
 
-  // Update filter resonance
-  useEffect(() => {
-    if (filterRef.current && audioContextRef.current) {
-      filterRef.current.Q.setValueAtTime(filterResonance, audioContextRef.current.currentTime);
-    }
-  }, [filterResonance]);
 
   const initAudio = async () => {
     cleanup();
@@ -258,10 +269,10 @@ const WaveformPlayer: React.FC = () => {
       filterRef.current = audioContextRef.current.createBiquadFilter();
       filterRef.current.type = 'lowpass';
       filterRef.current.frequency.value = filterFrequency;
-      filterRef.current.Q.value = filterResonance;
+      filterRef.current.Q.value = 0.707; // Butterworth (flat response)
 
       envelopeGainRef.current = audioContextRef.current.createGain();
-      envelopeGainRef.current.gain.value = droneMode ? 1 : 0;
+      envelopeGainRef.current.gain.value = 0; // Start muted, will unmute in playWaveform
 
       convolverRef.current = audioContextRef.current.createConvolver();
       dryGainRef.current = audioContextRef.current.createGain();
@@ -289,6 +300,19 @@ const WaveformPlayer: React.FC = () => {
     }
   };
 
+  // Lightweight morph update - only sends morph parameters, not waveform data
+  const updateWorkletMorph = () => {
+    if (!workletNodeRef.current) return;
+    workletNodeRef.current.port.postMessage({
+      type: 'updateMorph',
+      bankMorphEnabled,
+      waveMorphEnabled,
+      bankMorphAmount: bankMorphEnabled ? bankIndex % 1 : 0,
+      waveMorphAmount: waveMorphEnabled ? waveIndex % 1 : 0
+    });
+  };
+
+  // Full waveform update - sends waveform data and morph parameters
   const updateWorkletWaveforms = () => {
     if (!workletNodeRef.current || !currentBank) return;
     const waveformNames = getWaveformNames(currentBank, bankIndex, waveIndex);
@@ -315,15 +339,27 @@ const WaveformPlayer: React.FC = () => {
     });
   };
 
+  // Reset worklet to silence (clears old waveform data)
+  const resetWorklet = () => {
+    if (!workletNodeRef.current) return;
+    workletNodeRef.current.port.postMessage({ type: 'reset' });
+  };
+
   const playWaveform = async () => {
     try {
       if (!audioContextRef.current) await initAudio();
+      // Reset worklet to silence, then load current waveforms
+      resetWorklet();
+      loadedWaveformsRef.current = null; // Force waveform reload
+      updateWorkletWaveforms();
       if (audioContextRef.current!.state === 'suspended') await audioContextRef.current!.resume();
-      if (envelopeGainRef.current) {
-        envelopeGainRef.current.gain.setValueAtTime(droneMode ? 1 : 0, audioContextRef.current!.currentTime);
+      if (envelopeGainRef.current && audioContextRef.current) {
+        const now = audioContextRef.current.currentTime;
+        // Small fade-in to avoid clicks
+        envelopeGainRef.current.gain.setValueAtTime(0, now);
+        envelopeGainRef.current.gain.linearRampToValueAtTime(droneMode ? 1 : 0, now + 0.02);
       }
       setIsPlaying(true);
-      updateWorkletWaveforms();
     } catch (error) {
       console.error('Error starting playback:', error);
     }
@@ -442,19 +478,19 @@ const WaveformPlayer: React.FC = () => {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6 bg-gray-900 min-h-screen">
+    <div className="p-6 max-w-4xl mx-auto space-y-6 bg-zinc-900 min-h-screen">
       <header>
-        <h1 className="text-2xl font-bold text-white">AKWF Player</h1>
-        <p className="text-sm text-gray-400">
+        <h1 className="text-2xl font-bold text-stone-200">AKWF Player</h1>
+        <p className="text-sm text-stone-400">
           Preview single-cycle waveforms from the{' '}
-          <a href="https://www.adventurekid.se/akrt/waveforms/adventure-kid-waveforms/" className="text-blue-400 hover:underline">Adventure Kid Waveform</a> collection.
+          <a href="https://www.adventurekid.se/akrt/waveforms/adventure-kid-waveforms/" className="text-stone-300 hover:text-stone-100 hover:underline">Adventure Kid Waveform</a> collection.
         </p>
       </header>
 
       {/* Waveform Display */}
-      <div className="border border-gray-700 rounded-lg p-4 bg-gray-800">
-        <WaveformDisplay data={getMorphedWaveform()} width={600} height={150} color="#3b82f6" backgroundColor="#1f2937" centerLineColor="#4b5563" showCenterLine={true} />
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 font-mono">
+      <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-800 flex flex-col items-center">
+        <WaveformDisplay data={getMorphedWaveform()} width={600} height={150} color="#d6d3d1" backgroundColor="#27272a" centerLineColor="#52525b" showCenterLine={true} />
+        <p className="mt-2 text-xs text-stone-500 font-mono">
           {isLoading ? 'Loading...' : getMorphLabel()}
         </p>
       </div>
@@ -466,12 +502,12 @@ const WaveformPlayer: React.FC = () => {
           <button
             onClick={isPlaying ? stopPlayback : playWaveform}
             disabled={isLoading || !currentBank}
-            className={`px-6 py-3 rounded-lg font-semibold text-white transition-colors ${
+            className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
               isLoading || !currentBank
-                ? 'bg-gray-400 cursor-not-allowed'
+                ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
                 : isPlaying
-                  ? 'bg-red-500 hover:bg-red-600'
-                  : 'bg-green-500 hover:bg-green-600'
+                  ? 'bg-stone-400 hover:bg-stone-300 text-zinc-900'
+                  : 'bg-stone-300 hover:bg-stone-200 text-zinc-900'
             }`}
           >
             {isLoading ? 'Loading...' : isPlaying ? 'Stop' : 'Play'}
@@ -493,7 +529,7 @@ const WaveformPlayer: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Bank</span>
+                  <span className="text-sm text-stone-300">Bank</span>
                   <Switch checked={bankMorphEnabled} onCheckedChange={setBankMorphEnabled} label="Morph" />
                 </div>
                 <Slider
@@ -510,7 +546,7 @@ const WaveformPlayer: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-sm text-gray-700 dark:text-gray-300">Wave</span>
+                  <span className="text-sm text-stone-300">Wave</span>
                   <Switch checked={waveMorphEnabled} onCheckedChange={setWaveMorphEnabled} label="Morph" />
                 </div>
                 <Slider
@@ -555,15 +591,6 @@ const WaveformPlayer: React.FC = () => {
               <ModKnob value={envToFilterMod} onChange={setEnvToFilterMod} label="env" disabled={droneMode} />
             </div>
 
-            <RotaryKnob
-              value={filterResonance}
-              onChange={setFilterResonance}
-              min={0.1} max={20} step={0.1}
-              label="Res"
-              formatValue={(v) => v.toFixed(1)}
-              size={72}
-              defaultValue={0.707}
-            />
           </div>
         </ParameterGroup>
 
@@ -582,10 +609,10 @@ const WaveformPlayer: React.FC = () => {
               disabled={!isPlaying || droneMode}
               className={`px-6 py-3 rounded-lg font-semibold transition-colors ${
                 !isPlaying || droneMode
-                  ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 cursor-not-allowed opacity-50'
+                  ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed opacity-50'
                   : noteActive
-                    ? 'bg-orange-500 text-white'
-                    : 'bg-blue-500 hover:bg-blue-600 text-white'
+                    ? 'bg-stone-200 text-zinc-900'
+                    : 'bg-stone-300 hover:bg-stone-200 text-zinc-900'
               }`}
             >
               {noteActive ? 'Playing...' : 'Trigger'}
@@ -598,7 +625,7 @@ const WaveformPlayer: React.FC = () => {
           <div className="flex items-center gap-4">
             <Switch checked={reverbEnabled} onCheckedChange={setReverbEnabled} label="Enable" />
             <RotaryKnob value={reverbMix} onChange={setReverbMix} min={0} max={1} step={0.01} label="Mix" formatValue={(v) => formatPercent(v)} size={56} disabled={!reverbEnabled} />
-            <p className="text-xs text-gray-400">York Minster IR</p>
+            <p className="text-xs text-stone-500">York Minster IR</p>
           </div>
         </ParameterGroup>
       </div>

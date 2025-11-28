@@ -15,13 +15,13 @@ class WaveformProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
     this.phase = 0;
-    
+
     // Initialize waveform storage
     this.bank1wave1 = new Float32Array(256).fill(0);
     this.bank1wave2 = new Float32Array(256).fill(0);
     this.bank2wave1 = new Float32Array(256).fill(0);
     this.bank2wave2 = new Float32Array(256).fill(0);
-    
+
     // Morphing settings
     this.bankMorphEnabled = true;
     this.waveMorphEnabled = true;
@@ -30,17 +30,33 @@ class WaveformProcessor extends AudioWorkletProcessor {
 
     this.port.onmessage = (event) => {
       if (event.data.type === 'loadWaveforms') {
-        // Update waveforms
-        this.bank1wave1 = new Float32Array(event.data.waveforms.bank1wave1);
-        this.bank1wave2 = new Float32Array(event.data.waveforms.bank1wave2);
-        this.bank2wave1 = new Float32Array(event.data.waveforms.bank2wave1);
-        this.bank2wave2 = new Float32Array(event.data.waveforms.bank2wave2);
-        
-        // Update morphing settings
+        // Copy waveform data into existing arrays to avoid GC
+        const w = event.data.waveforms;
+        this.bank1wave1.set(w.bank1wave1);
+        this.bank1wave2.set(w.bank1wave2);
+        this.bank2wave1.set(w.bank2wave1);
+        this.bank2wave2.set(w.bank2wave2);
+
+        // Update morphing settings if included
+        if (event.data.bankMorphEnabled !== undefined) {
+          this.bankMorphEnabled = event.data.bankMorphEnabled;
+          this.waveMorphEnabled = event.data.waveMorphEnabled;
+          this.bankMorphAmount = event.data.bankMorphAmount;
+          this.waveMorphAmount = event.data.waveMorphAmount;
+        }
+      } else if (event.data.type === 'updateMorph') {
+        // Lightweight update - just morph parameters, no waveform data
         this.bankMorphEnabled = event.data.bankMorphEnabled;
         this.waveMorphEnabled = event.data.waveMorphEnabled;
         this.bankMorphAmount = event.data.bankMorphAmount;
         this.waveMorphAmount = event.data.waveMorphAmount;
+      } else if (event.data.type === 'reset') {
+        // Clear all waveforms to silence
+        this.bank1wave1.fill(0);
+        this.bank1wave2.fill(0);
+        this.bank2wave1.fill(0);
+        this.bank2wave2.fill(0);
+        this.phase = 0;
       }
     };
   }
@@ -48,7 +64,7 @@ class WaveformProcessor extends AudioWorkletProcessor {
   process(inputs, outputs, parameters) {
     const output = outputs[0];
     const frequency = parameters.frequency[0];
-    
+
     // Calculate phase increment based on frequency
     const phaseIncrement = (frequency * 256) / sampleRate;
 

@@ -14,11 +14,11 @@ export function Switch({ checked, onCheckedChange, label, disabled = false }: Sw
         checked={checked}
         onCheckedChange={onCheckedChange}
         disabled={disabled}
-        className="w-10 h-6 bg-gray-300 dark:bg-gray-600 rounded-full relative data-[state=checked]:bg-blue-500 transition-colors disabled:cursor-not-allowed"
+        className="w-10 h-6 bg-zinc-600 rounded-full relative data-[state=checked]:bg-stone-400 transition-colors disabled:cursor-not-allowed"
       >
-        <SwitchPrimitive.Thumb className="block w-5 h-5 bg-white rounded-full shadow transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
+        <SwitchPrimitive.Thumb className="block w-5 h-5 bg-stone-200 rounded-full shadow transition-transform translate-x-0.5 data-[state=checked]:translate-x-[18px]" />
       </SwitchPrimitive.Root>
-      {label && <span className="font-semibold text-gray-700 dark:text-gray-300">{label}</span>}
+      {label && <span className="font-semibold text-stone-300">{label}</span>}
     </label>
   );
 }
