@@ -175,10 +175,28 @@ const WaveformPlayer: React.FC = () => {
     return parts.join(' + ');
   };
 
-  // Get morphed waveform data for display
+  // Helper to wrap a value within a range (Pac-Man style) - used for display
+  const wrapValueForDisplay = (val: number, minVal: number, maxVal: number): number => {
+    const range = maxVal - minVal;
+    if (range <= 0) return minVal;
+    let wrapped = ((val - minVal) % range);
+    if (wrapped < 0) wrapped += range;
+    return minVal + wrapped;
+  };
+
+  // Get morphed waveform data for display (includes modulation when active)
   const getMorphedWaveform = () => {
     if (!currentBank) return [];
-    const waveformNames = getWaveformNames(currentBank, bankIndex, waveIndex);
+
+    // Calculate display positions including modulation
+    const displayBankPos = bankModOffset !== undefined
+      ? wrapValueForDisplay(bankIndex + bankModOffset, 0, maxBankIndex + 1)
+      : bankIndex;
+    const displayWavePos = waveModOffset !== undefined
+      ? wrapValueForDisplay(waveIndex + waveModOffset, 0, WAVES_PER_BANK)
+      : waveIndex;
+
+    const waveformNames = getWaveformNames(currentBank, displayBankPos, displayWavePos);
 
     if (bankMorphEnabled || waveMorphEnabled) {
       const wave11 = currentBank[waveformNames.wave11];
@@ -188,8 +206,8 @@ const WaveformPlayer: React.FC = () => {
 
       if (!wave11 || !wave12 || !wave21 || !wave22) return [];
 
-      const bankMorphAmount = bankMorphEnabled ? bankIndex % 1 : 0;
-      const waveMorphAmount = waveMorphEnabled ? waveIndex % 1 : 0;
+      const bankMorphAmount = bankMorphEnabled ? displayBankPos % 1 : 0;
+      const waveMorphAmount = waveMorphEnabled ? displayWavePos % 1 : 0;
 
       return wave11.map((sample: number, i: number) => {
         const morphed1 = sample * (1 - waveMorphAmount) + wave12[i] * waveMorphAmount;
@@ -240,9 +258,35 @@ const WaveformPlayer: React.FC = () => {
     return new Blob([buffer], { type: 'audio/wav' });
   };
 
-  // Download current waveform as WAV
+  // Get base waveform (without modulation) for download
+  const getBaseWaveform = () => {
+    if (!currentBank) return [];
+    const waveformNames = getWaveformNames(currentBank, bankIndex, waveIndex);
+
+    if (bankMorphEnabled || waveMorphEnabled) {
+      const wave11 = currentBank[waveformNames.wave11];
+      const wave12 = currentBank[waveformNames.wave12];
+      const wave21 = currentBank[waveformNames.wave21];
+      const wave22 = currentBank[waveformNames.wave22];
+
+      if (!wave11 || !wave12 || !wave21 || !wave22) return [];
+
+      const bankMorphAmount = bankMorphEnabled ? bankIndex % 1 : 0;
+      const waveMorphAmount = waveMorphEnabled ? waveIndex % 1 : 0;
+
+      return wave11.map((sample: number, i: number) => {
+        const morphed1 = sample * (1 - waveMorphAmount) + wave12[i] * waveMorphAmount;
+        const morphed2 = wave21[i] * (1 - waveMorphAmount) + wave22[i] * waveMorphAmount;
+        return morphed1 * (1 - bankMorphAmount) + morphed2 * bankMorphAmount;
+      });
+    } else {
+      return currentBank[waveformNames.wave11] || [];
+    }
+  };
+
+  // Download current waveform as WAV (uses base position, not modulated)
   const downloadWaveform = () => {
-    const waveform = getMorphedWaveform();
+    const waveform = getBaseWaveform();
     if (waveform.length === 0) return;
 
     const blob = generateWavFile(waveform);
