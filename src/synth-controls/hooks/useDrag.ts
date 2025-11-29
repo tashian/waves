@@ -68,6 +68,7 @@ export function useDrag({
 
   const handleTouchMove = useCallback(
     (e: TouchEvent) => {
+      if (!isDraggingRef.current) return;
       if (e.touches.length > 0) {
         e.preventDefault();
         handleMove(e.touches[0].clientY);
