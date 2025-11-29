@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { useDrag } from '../hooks/useDrag';
 import { normalize } from '../utils/scaling';
 import { formatBipolarPercent } from '../utils/formatting';

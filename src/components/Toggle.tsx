@@ -1,9 +1,10 @@
+import { ReactNode } from 'react';
 import * as TogglePrimitive from '@radix-ui/react-toggle';
 
 interface ToggleProps {
   pressed: boolean;
   onPressedChange: (pressed: boolean) => void;
-  children: React.ReactNode;
+  children: ReactNode;
   disabled?: boolean;
 }
 

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import WaveformDisplay from './WaveformDisplay';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import WaveformDisplay from './components/WaveformDisplay';
 import { useWaveformLoader, BankData } from './hooks/useWaveformLoader';
 import { Switch } from './components/Switch';
 import { Select } from './components/Select';
@@ -21,7 +21,7 @@ const invExpScale = (value: number, min: number, max: number): number => {
 
 const WAVES_PER_BANK = 10;
 
-const WaveformPlayer: React.FC = () => {
+const WaveformPlayer = () => {
   // Lazy-load waveforms
   const { banks, currentBank, currentBankName, isLoading, error, loadBank } = useWaveformLoader();
 

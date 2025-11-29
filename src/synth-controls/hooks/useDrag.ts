@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, MouseEvent, TouchEvent, WheelEvent, KeyboardEvent } from 'react';
 import { clamp } from '../utils/scaling';
 
 interface UseDragOptions {
@@ -15,11 +15,11 @@ interface UseDragOptions {
 }
 
 interface UseDragReturn {
-  onMouseDown: (e: React.MouseEvent) => void;
-  onTouchStart: (e: React.TouchEvent) => void;
-  onWheel: (e: React.WheelEvent) => void;
-  onKeyDown: (e: React.KeyboardEvent) => void;
-  onDoubleClick: (e: React.MouseEvent) => void;
+  onMouseDown: (e: MouseEvent) => void;
+  onTouchStart: (e: TouchEvent) => void;
+  onWheel: (e: WheelEvent) => void;
+  onKeyDown: (e: KeyboardEvent) => void;
+  onDoubleClick: (e: MouseEvent) => void;
   isDragging: boolean;
 }
 
@@ -103,7 +103,7 @@ export function useDrag({
   }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd, disabled]);
 
   const onMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+    (e: MouseEvent) => {
       if (disabled) return;
       e.preventDefault();
 
@@ -118,7 +118,7 @@ export function useDrag({
   );
 
   const onTouchStart = useCallback(
-    (e: React.TouchEvent) => {
+    (e: TouchEvent) => {
       if (disabled) return;
       if (e.touches.length === 0) return;
 
@@ -132,7 +132,7 @@ export function useDrag({
   );
 
   const onWheel = useCallback(
-    (e: React.WheelEvent) => {
+    (e: WheelEvent) => {
       if (disabled) return;
       e.preventDefault();
 
@@ -152,7 +152,7 @@ export function useDrag({
   );
 
   const onKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: KeyboardEvent) => {
       if (disabled) return;
 
       let direction = 0;
@@ -196,7 +196,7 @@ export function useDrag({
   );
 
   const onDoubleClick = useCallback(
-    (e: React.MouseEvent) => {
+    (e: MouseEvent) => {
       // Double-click could reset to default - but we'd need defaultValue prop
       // For now, this is a placeholder
     },

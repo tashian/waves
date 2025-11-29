@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useCallback, useEffect } from 'react';
+import { useMemo, useRef, useCallback, useEffect, MouseEvent, TouchEvent } from 'react';
 import { normalize, clamp } from '../utils/scaling';
 import type { SliderProps } from '../types';
 
@@ -90,7 +90,7 @@ export function SynthSlider({
   }, [min, max, step, value]);
 
   // Mouse handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleMouseDown = useCallback((e: MouseEvent<HTMLDivElement>) => {
     if (disabled) return;
     e.preventDefault();
     isDraggingRef.current = true;
@@ -113,7 +113,7 @@ export function SynthSlider({
   }, []);
 
   // Touch handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+  const handleTouchStart = useCallback((e: TouchEvent<HTMLDivElement>) => {
     if (disabled || e.touches.length === 0) return;
     isDraggingRef.current = true;
     const newValue = getValueFromPosition(e.touches[0].clientX);

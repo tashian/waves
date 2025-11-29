@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import { useMemo, MouseEvent } from 'react';
 import { useDrag } from '../hooks/useDrag';
 import { normalize, clamp, expScale, invExpScale } from '../utils/scaling';
 import type { KnobProps } from '../types';
@@ -60,7 +60,7 @@ export function RotaryKnob({
   });
 
   // Handle double-click to reset to default
-  const handleDoubleClick = (e: React.MouseEvent) => {
+  const handleDoubleClick = (e: MouseEvent) => {
     if (defaultValue !== undefined && !disabled) {
       onChange(defaultValue);
     }

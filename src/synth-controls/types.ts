@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 export interface KnobProps {
   /** Current value (controlled) */
   value: number;
@@ -50,7 +52,7 @@ export interface SliderProps {
 
 export interface ParameterGroupProps {
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
   collapsible?: boolean;
   defaultOpen?: boolean;
   className?: string;
