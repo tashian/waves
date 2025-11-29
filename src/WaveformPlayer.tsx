@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import WaveformDisplay from './WaveformDisplay';
 import { useWaveformLoader, BankData } from './hooks/useWaveformLoader';
 import { Switch } from './components/Switch';
-import { Slider } from './components/Slider';
 import { Select } from './components/Select';
-import { RotaryKnob, ModKnob, ParameterGroup } from './synth-controls';
+import { RotaryKnob, ModKnob, SynthSlider, ParameterGroup } from './synth-controls';
 import { formatFrequency, formatTime, formatPercent } from './synth-controls/utils/formatting';
 
 // Utility functions for exponential scaling
@@ -99,6 +98,15 @@ const WaveformPlayer: React.FC = () => {
       ) - filterFreqNorm
     : undefined;
 
+  // Bank/wave modulation offsets (these wrap around Pac-Man style in the slider)
+  const bankModOffset = envToBankMod !== 0
+    ? currentEnvValue * envToBankMod * (maxBankIndex / 2)
+    : undefined;
+
+  const waveModOffset = envToWaveMod !== 0
+    ? currentEnvValue * envToWaveMod * ((WAVES_PER_BANK - 1) / 2)
+    : undefined;
+
   // Audio refs
   const audioContextRef = useRef<AudioContext | null>(null);
   const workletNodeRef = useRef<AudioWorkletNode | null>(null);
@@ -110,6 +118,11 @@ const WaveformPlayer: React.FC = () => {
   const noteTimeoutRef = useRef<number | null>(null);
   const modAnimationRef = useRef<number | null>(null);
   const baseValuesRef = useRef({ bank: 0, wave: 0, freq: 440, filter: 22050 });
+  const envelopeTimingRef = useRef<{ startTime: number; releaseStartTime: number | null; startValue: number }>({
+    startTime: 0,
+    releaseStartTime: null,
+    startValue: 0
+  });
 
   // Get waveform names for current position
   const getWaveformNames = (bankData: BankData | null, bankPos: number, wavePos: number) => {
@@ -474,24 +487,80 @@ const WaveformPlayer: React.FC = () => {
     setNoteActive(false);
   };
 
+  // Helper to wrap a value within a range (Pac-Man style)
+  const wrapValue = (val: number, min: number, max: number): number => {
+    const range = max - min;
+    if (range <= 0) return min;
+    let wrapped = ((val - min) % range);
+    if (wrapped < 0) wrapped += range;
+    return min + wrapped;
+  };
+
+  // Calculate envelope value from timing (same calculation as Web Audio uses)
+  const calculateEnvelopeValue = () => {
+    const timing = envelopeTimingRef.current;
+    const now = performance.now() / 1000; // Convert to seconds
+    const elapsed = now - timing.startTime;
+
+    if (timing.releaseStartTime !== null) {
+      // In release phase
+      const releaseElapsed = now - timing.releaseStartTime;
+      if (releaseElapsed >= release) return 0;
+      // Linear ramp from sustain to 0
+      const releaseProgress = releaseElapsed / release;
+      return sustain * (1 - releaseProgress);
+    }
+
+    if (elapsed < attack) {
+      // Attack phase: ramp from startValue to 1
+      const attackProgress = elapsed / attack;
+      return timing.startValue + (1 - timing.startValue) * attackProgress;
+    } else if (elapsed < attack + decay) {
+      // Decay phase: ramp from 1 to sustain
+      const decayElapsed = elapsed - attack;
+      const decayProgress = decayElapsed / decay;
+      return 1 - (1 - sustain) * decayProgress;
+    } else {
+      // Sustain phase
+      return sustain;
+    }
+  };
+
   const startModulationLoop = () => {
     const modLoop = () => {
-      if (!envelopeGainRef.current || !audioContextRef.current) {
+      if (!audioContextRef.current || !workletNodeRef.current) {
         modAnimationRef.current = null;
         return;
       }
-      const envValue = envelopeGainRef.current.gain.value;
+      const envValue = calculateEnvelopeValue();
       const base = baseValuesRef.current;
 
       // Update envelope value for visual feedback
       setCurrentEnvValue(envValue);
 
-      if (envToBankMod !== 0) {
-        setBankIndex(Math.max(0, Math.min(maxBankIndex, base.bank + envValue * envToBankMod * (maxBankIndex / 2))));
+      // Calculate modulated bank/wave values and send to worklet (wrap around Pac-Man style)
+      if (envToBankMod !== 0 || envToWaveMod !== 0) {
+        const modBank = wrapValue(
+          base.bank + envValue * envToBankMod * (maxBankIndex / 2),
+          0,
+          maxBankIndex + 1
+        );
+        const modWave = wrapValue(
+          base.wave + envValue * envToWaveMod * ((WAVES_PER_BANK - 1) / 2),
+          0,
+          WAVES_PER_BANK
+        );
+
+        // Send modulated morph amounts to worklet
+        workletNodeRef.current.port.postMessage({
+          type: 'updateMorph',
+          bankMorphEnabled,
+          waveMorphEnabled,
+          bankMorphAmount: bankMorphEnabled ? modBank % 1 : 0,
+          waveMorphAmount: waveMorphEnabled ? modWave % 1 : 0
+        });
       }
-      if (envToWaveMod !== 0) {
-        setWaveIndex(Math.max(0, Math.min(WAVES_PER_BANK - 1, base.wave + envValue * envToWaveMod * ((WAVES_PER_BANK - 1) / 2))));
-      }
+
       if (envToFreqMod !== 0) {
         const newFreq = base.freq * Math.pow(2, envValue * envToFreqMod * 2);
         workletNodeRef.current?.parameters.get('frequency')?.setValueAtTime(Math.max(20, Math.min(2000, newFreq)), audioContextRef.current.currentTime);
@@ -513,10 +582,19 @@ const WaveformPlayer: React.FC = () => {
     // Reset envelope value for visual feedback
     setCurrentEnvValue(0);
     const base = baseValuesRef.current;
-    if (envToBankMod !== 0) setBankIndex(base.bank);
-    if (envToWaveMod !== 0) setWaveIndex(base.wave);
+    // Reset freq/filter to base values
     if (envToFreqMod !== 0) workletNodeRef.current?.parameters.get('frequency')?.setValueAtTime(base.freq, audioContextRef.current?.currentTime || 0);
     if (envToFilterMod !== 0) filterRef.current?.frequency.setValueAtTime(base.filter, audioContextRef.current?.currentTime || 0);
+    // Reset morph amounts to base values
+    if ((envToBankMod !== 0 || envToWaveMod !== 0) && workletNodeRef.current) {
+      workletNodeRef.current.port.postMessage({
+        type: 'updateMorph',
+        bankMorphEnabled,
+        waveMorphEnabled,
+        bankMorphAmount: bankMorphEnabled ? base.bank % 1 : 0,
+        waveMorphAmount: waveMorphEnabled ? base.wave % 1 : 0
+      });
+    }
   };
 
   const triggerNote = async () => {
@@ -538,6 +616,15 @@ const WaveformPlayer: React.FC = () => {
     const gain = envelopeGainRef.current.gain;
 
     baseValuesRef.current = { bank: bankIndex, wave: waveIndex, freq: frequency, filter: filterFrequency };
+
+    // Record timing for visual envelope calculation
+    const currentEnvVal = calculateEnvelopeValue();
+    envelopeTimingRef.current = {
+      startTime: performance.now() / 1000,
+      releaseStartTime: null,
+      startValue: currentEnvVal
+    };
+
     gain.cancelScheduledValues(now);
     gain.setValueAtTime(gain.value, now);
     gain.linearRampToValueAtTime(1, now + attack);
@@ -551,6 +638,10 @@ const WaveformPlayer: React.FC = () => {
     noteTimeoutRef.current = window.setTimeout(() => {
       if (!envelopeGainRef.current || !audioContextRef.current) return;
       const releaseTime = audioContextRef.current.currentTime;
+
+      // Record release start time for visual envelope
+      envelopeTimingRef.current.releaseStartTime = performance.now() / 1000;
+
       gain.cancelScheduledValues(releaseTime);
       gain.setValueAtTime(gain.value, releaseTime);
       gain.linearRampToValueAtTime(0, releaseTime + release);
@@ -639,12 +730,14 @@ const WaveformPlayer: React.FC = () => {
                   <span className="text-sm text-stone-300">Bank</span>
                   <Switch checked={bankMorphEnabled} onCheckedChange={setBankMorphEnabled} label="Morph" />
                 </div>
-                <Slider
+                <SynthSlider
                   value={bankIndex}
-                  onValueChange={setBankIndex}
-                  min={0} max={maxBankIndex}
+                  onChange={setBankIndex}
+                  min={0}
+                  max={maxBankIndex}
                   step={bankMorphEnabled ? 0.01 : 1}
                   valueDisplay={`Bank ${Math.floor(bankIndex) + 1}/${numBanks}`}
+                  modulationValue={bankModOffset}
                 />
               </div>
               <ModKnob value={envToBankMod} onChange={setEnvToBankMod} label="env" disabled={droneMode} />
@@ -656,12 +749,14 @@ const WaveformPlayer: React.FC = () => {
                   <span className="text-sm text-stone-300">Wave</span>
                   <Switch checked={waveMorphEnabled} onCheckedChange={setWaveMorphEnabled} label="Morph" />
                 </div>
-                <Slider
+                <SynthSlider
                   value={waveIndex}
-                  onValueChange={setWaveIndex}
-                  min={0} max={WAVES_PER_BANK - 1}
+                  onChange={setWaveIndex}
+                  min={0}
+                  max={WAVES_PER_BANK - 1}
                   step={waveMorphEnabled ? 0.01 : 1}
                   valueDisplay={`Wave ${Math.floor(waveIndex) + 1}`}
+                  modulationValue={waveModOffset}
                 />
               </div>
               <ModKnob value={envToWaveMod} onChange={setEnvToWaveMod} label="env" disabled={droneMode} />

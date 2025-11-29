@@ -1,6 +1,7 @@
 // Components
 export { RotaryKnob } from './components/RotaryKnob';
 export { ModKnob } from './components/ModKnob';
+export { SynthSlider } from './components/SynthSlider';
 export { ParameterGroup } from './components/ParameterGroup';
 
 // Hooks
