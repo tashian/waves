@@ -584,7 +584,7 @@ const WaveformPlayer: React.FC = () => {
 
       {/* Waveform Display */}
       <div className="border border-zinc-700 rounded-lg p-4 bg-zinc-800 flex flex-col items-center">
-        <WaveformDisplay data={getMorphedWaveform()} width={600} height={150} color="#d6d3d1" backgroundColor="#27272a" centerLineColor="#52525b" showCenterLine={true} />
+        <WaveformDisplay data={getMorphedWaveform()} height={150} color="#d6d3d1" backgroundColor="#27272a" centerLineColor="#52525b" showCenterLine={true} />
         <div className="mt-2 flex items-center gap-3">
           <p className="text-xs text-stone-500 font-mono">
             {isLoading ? 'Loading...' : getMorphLabel()}

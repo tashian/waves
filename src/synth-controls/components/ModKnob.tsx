@@ -45,7 +45,7 @@ export function ModKnob({
   // Center position angle (for bipolar indicator)
   const centerAngle = START_ANGLE + 0.5 * ARC_DEGREES; // 0 degrees (top)
 
-  const { onMouseDown, onWheel, onKeyDown } = useDrag({
+  const { onMouseDown, onTouchStart, onWheel, onKeyDown } = useDrag({
     value,
     onChange,
     min,
@@ -112,8 +112,9 @@ export function ModKnob({
   return (
     <div className="flex flex-col items-center gap-0.5">
       <div
-        className={`relative rounded-full outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 dark:focus:ring-offset-gray-900 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-ns-resize'}`}
+        className={`relative rounded-full outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 focus:ring-offset-zinc-900 ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-ns-resize'} touch-none`}
         onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
         onWheel={onWheel}
         onKeyDown={onKeyDown}
         onDoubleClick={handleDoubleClick}
@@ -138,7 +139,7 @@ export function ModKnob({
             fill="none"
             stroke="currentColor"
             strokeWidth={1.5}
-            className="text-gray-300 dark:text-gray-600"
+            className="text-zinc-600"
             strokeLinecap="round"
           />
 
@@ -150,7 +151,7 @@ export function ModKnob({
             y2={centerTick.y2}
             stroke="currentColor"
             strokeWidth={1}
-            className="text-gray-400 dark:text-gray-500"
+            className="text-zinc-500"
           />
 
           {/* Value pointer - color indicates polarity */}
@@ -167,7 +168,7 @@ export function ModKnob({
                 ? 'text-orange-500'
                 : isNegative
                 ? 'text-cyan-500'
-                : 'text-gray-400'
+                : 'text-zinc-400'
             }`}
           />
 
@@ -176,14 +177,14 @@ export function ModKnob({
             cx={center}
             cy={center}
             r={1.5}
-            className="fill-gray-400 dark:fill-gray-500"
+            className="fill-zinc-500"
           />
         </svg>
       </div>
 
       {/* Label */}
       {label && (
-        <span className="text-[10px] text-gray-400 dark:text-gray-500 uppercase">
+        <span className="text-[10px] text-stone-500 uppercase">
           {label}
         </span>
       )}

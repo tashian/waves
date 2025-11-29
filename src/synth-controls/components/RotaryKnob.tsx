@@ -50,7 +50,7 @@ export function RotaryKnob({
     : undefined;
 
   // Drag handler - works with actual values, not normalized
-  const { onMouseDown, onWheel, onKeyDown, onDoubleClick } = useDrag({
+  const { onMouseDown, onTouchStart, onWheel, onKeyDown, onDoubleClick } = useDrag({
     value,
     onChange,
     min,
@@ -113,8 +113,9 @@ export function RotaryKnob({
       style={{ width: size }}
     >
       <div
-        className={`relative rounded-full outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 ${disabled ? 'cursor-not-allowed' : 'cursor-ns-resize'}`}
+        className={`relative rounded-full outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-zinc-900 ${disabled ? 'cursor-not-allowed' : 'cursor-ns-resize'} touch-none`}
         onMouseDown={onMouseDown}
+        onTouchStart={onTouchStart}
         onWheel={onWheel}
         onKeyDown={onKeyDown}
         onDoubleClick={handleDoubleClick}
@@ -138,7 +139,7 @@ export function RotaryKnob({
             fill="none"
             stroke="currentColor"
             strokeWidth={2}
-            className="text-gray-300 dark:text-gray-600"
+            className="text-zinc-600"
             strokeLinecap="round"
           />
 
@@ -147,7 +148,7 @@ export function RotaryKnob({
             cx={center}
             cy={center}
             r={3}
-            className="fill-gray-400 dark:fill-gray-500"
+            className="fill-zinc-500"
           />
 
           {/* Modulation pointer (ghost) */}
@@ -180,13 +181,13 @@ export function RotaryKnob({
       </div>
 
       {/* Value display */}
-      <span className="text-xs text-gray-600 dark:text-gray-400 font-mono tabular-nums">
+      <span className="text-xs text-stone-400 font-mono tabular-nums">
         {displayValue}
       </span>
 
       {/* Label */}
       {label && (
-        <span className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+        <span className="text-xs text-stone-400 uppercase tracking-wide">
           {label}
         </span>
       )}

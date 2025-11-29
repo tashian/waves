@@ -1,8 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
-const WaveformDisplay = ({ 
+const WaveformDisplay = ({
   data,
-  width = 600,
   height = 200,
   color = '#2563eb',
   backgroundColor = 'white',
@@ -11,6 +10,25 @@ const WaveformDisplay = ({
   className = '',
 }) => {
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
+  const [width, setWidth] = useState(600);
+
+  // Resize observer to make canvas responsive
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setWidth(entry.contentRect.width);
+      }
+    });
+
+    resizeObserver.observe(container);
+    setWidth(container.clientWidth);
+
+    return () => resizeObserver.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!data || !data.length) return;
@@ -62,12 +80,12 @@ const WaveformDisplay = ({
   }, [data, width, height, color, backgroundColor, showCenterLine, centerLineColor]);
 
   return (
-    <div className={className}>
+    <div ref={containerRef} className={`w-full ${className}`}>
       <canvas
         ref={canvasRef}
         width={width}
         height={height}
-        className="rounded"
+        className="rounded w-full"
       />
     </div>
   );

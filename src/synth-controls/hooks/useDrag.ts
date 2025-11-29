@@ -16,6 +16,7 @@ interface UseDragOptions {
 
 interface UseDragReturn {
   onMouseDown: (e: React.MouseEvent) => void;
+  onTouchStart: (e: React.TouchEvent) => void;
   onWheel: (e: React.WheelEvent) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
   onDoubleClick: (e: React.MouseEvent) => void;
@@ -36,13 +37,13 @@ export function useDrag({
   const startYRef = useRef(0);
   const startValueRef = useRef(0);
 
-  const handleMouseMove = useCallback(
-    (e: MouseEvent) => {
+  const handleMove = useCallback(
+    (clientY: number, shiftKey: boolean = false) => {
       if (!isDraggingRef.current || disabled) return;
 
-      const deltaY = startYRef.current - e.clientY;
+      const deltaY = startYRef.current - clientY;
       const range = max - min;
-      const multiplier = e.shiftKey ? fineMultiplier : 1;
+      const multiplier = shiftKey ? fineMultiplier : 1;
       const deltaValue = (deltaY / sensitivity) * range * multiplier;
 
       let newValue = startValueRef.current + deltaValue;
@@ -58,23 +59,47 @@ export function useDrag({
     [value, onChange, min, max, step, sensitivity, fineMultiplier, disabled]
   );
 
-  const handleMouseUp = useCallback(() => {
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      handleMove(e.clientY, e.shiftKey);
+    },
+    [handleMove]
+  );
+
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        e.preventDefault();
+        handleMove(e.touches[0].clientY);
+      }
+    },
+    [handleMove]
+  );
+
+  const handleEnd = useCallback(() => {
     isDraggingRef.current = false;
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
   }, []);
+
+  const handleMouseUp = handleEnd;
+  const handleTouchEnd = handleEnd;
 
   useEffect(() => {
     if (disabled) return;
 
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+    document.addEventListener('touchend', handleTouchEnd);
 
     return () => {
       document.removeEventListener('mousemove', handleMouseMove);
       document.removeEventListener('mouseup', handleMouseUp);
+      document.removeEventListener('touchmove', handleTouchMove);
+      document.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [handleMouseMove, handleMouseUp, disabled]);
+  }, [handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd, disabled]);
 
   const onMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -86,6 +111,20 @@ export function useDrag({
       startValueRef.current = value;
 
       document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+    },
+    [value, disabled]
+  );
+
+  const onTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (disabled) return;
+      if (e.touches.length === 0) return;
+
+      isDraggingRef.current = true;
+      startYRef.current = e.touches[0].clientY;
+      startValueRef.current = value;
+
       document.body.style.userSelect = 'none';
     },
     [value, disabled]
@@ -165,6 +204,7 @@ export function useDrag({
 
   return {
     onMouseDown,
+    onTouchStart,
     onWheel,
     onKeyDown,
     onDoubleClick,
