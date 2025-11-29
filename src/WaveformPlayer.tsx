@@ -594,7 +594,7 @@ const WaveformPlayer: React.FC = () => {
             disabled={isLoading || !currentBank}
             className="px-2 py-1 text-xs rounded bg-zinc-700 hover:bg-zinc-600 text-stone-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            Download WAV
+            Download
           </button>
         </div>
       </div>
